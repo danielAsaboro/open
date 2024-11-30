@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
-use crate::state::listing::{ Listing, ListingStatus, Location };
-use crate::instructions::listing::{ create::*, update::* };
+use crate::state::listing::{ ListingData, ListingStatus, Location };
+use crate::instructions::listing::{ create::*, update::*, vote::* };
+use crate::instructions::comment::create::*;
 
 pub mod state;
 pub mod instructions;
@@ -12,7 +13,7 @@ declare_id!("J4B6mY3BfhpXmthVpdY6R315RTKxQnzitjYafwQZ8he");
 pub mod open_house_redone {
     use super::*;
 
-    pub fn create_listing(ctx: Context<CreateListing>, listing: Listing) -> Result<()> {
+    pub fn create_listing(ctx: Context<CreateListing>, listing: ListingData) -> Result<()> {
         instructions::listing::create::create_listing(ctx, listing)
     }
 
@@ -22,6 +23,26 @@ pub mod open_house_redone {
         new_status: Option<ListingStatus>
     ) -> Result<()> {
         instructions::listing::update::update_listing(ctx, new_location, new_status)
+    }
+
+    pub fn vote_on_listing(ctx: Context<VoteOnListing>, is_up_vote: bool) -> Result<()> {
+        if is_up_vote {
+            return instructions::listing::vote::up_vote_listing(ctx);
+        } else {
+            return instructions::listing::vote::down_vote_listing(ctx);
+        }
+    }
+
+    pub fn vote_on_listing_comment(ctx: Context<VoteOnComment>, is_up_vote: bool) -> Result<()> {
+        if is_up_vote {
+            return instructions::listing::vote::up_vote_comment(ctx);
+        } else {
+            return instructions::listing::vote::down_vote_comment(ctx);
+        }
+    }
+
+    pub fn create_comment(ctx: Context<CreateComment>, content: String) -> Result<()> {
+        instructions::comment::create::create_comment(ctx, content)
     }
 }
 

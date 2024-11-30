@@ -22,7 +22,7 @@ pub struct CreateListing<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn create_listing(ctx: Context<CreateListing>, listing: Listing) -> Result<()> {
+pub fn create_listing(ctx: Context<CreateListing>, listing: ListingData) -> Result<()> {
     let new_listing = &mut ctx.accounts.listing;
     new_listing.location = listing.location;
     new_listing.creator = ctx.accounts.creator.key();
@@ -32,3 +32,5 @@ pub fn create_listing(ctx: Context<CreateListing>, listing: Listing) -> Result<(
     new_listing.status = ListingStatus::Active;
     Ok(())
 }
+
+

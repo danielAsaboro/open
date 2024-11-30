@@ -50,8 +50,6 @@ describe("open_house_redone_create", () => {
     assert(listingAccount.status.active !== undefined);
   });
 
-  
-
   it("Creates multiple listings", async () => {
     const locations = [
       { long: new anchor.BN(100), lat: new anchor.BN(200) },
@@ -104,24 +102,25 @@ describe("open_house_redone_create", () => {
     assert.equal(allListings.length, locations.length + 1);
   });
 
-  // it("Can filter listings by author", async () => {
-  //   const authorPublicKey = provider.wallet.publicKey;
-  //   const listings = await program.account.listing.all([
-  //     {
-  //       memcmp: {
-  //         offset: 8, // Discriminator.
-  //         bytes: authorPublicKey.toBase58(),
-  //       },
-  //     },
-  //   ]);
+  it("Can filter listings by author", async () => {
+    const authorPublicKey = provider.wallet.publicKey;
+    const listings = await program.account.listing.all([
+      {
+        memcmp: {
+          offset: 8, // Discriminator.
+          bytes: authorPublicKey.toBase58(),
+        },
+      },
+    ]);
+    // console.log(listings)
 
-  //   assert.equal(listings.length, 4);
-  //   assert.ok(
-  //     listings.every((eachListing) => {
-  //       return (
-  //         eachListing.account.creator.toBase58() === authorPublicKey.toBase58()
-  //       );
-  //     })
-  //   );
-  // });
+    assert.equal(listings.length, 4);
+    assert.ok(
+      listings.every((eachListing) => {
+        return (
+          eachListing.account.creator.toBase58() === authorPublicKey.toBase58()
+        );
+      })
+    );
+  });
 });
