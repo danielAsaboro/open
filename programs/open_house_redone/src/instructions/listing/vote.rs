@@ -1,24 +1,29 @@
 use anchor_lang::prelude::*;
-use crate::state::listing::*;
+use anchor_spl::token::{ Token, TokenAccount };
 
-#[account]
-pub struct Vote {
-    pub owner: Pubkey,
-    // Can be either listing or comment Pubkey
-    pub target: Pubkey,
-    pub is_upvote: bool,
-    pub bump: u8,
-}
+use crate::{
+    errors::OpenHouseError,
+    state::{
+        listing::{ Listing, ListingStatus },
+        program_state::ProgramState,
+        reward::RewardsTreasury,
+        user::User,
+        vote::Vote,
+    },
+};
 
 #[derive(Accounts)]
 pub struct VoteOnListing<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = listing.status == ListingStatus::Active @ OpenHouseError::ListingNotActive
+    )]
     pub listing: Account<'info, Listing>,
 
     #[account(
         init_if_needed,
         seeds = [b"listing_vote", listing.key().as_ref(), voter.key().as_ref()],
-        space = 8 + 32 + 32 + 1 + 1,
+        space = Vote::LEN,
         bump,
         payer = voter
     )]
@@ -26,25 +31,37 @@ pub struct VoteOnListing<'info> {
 
     #[account(mut)]
     pub voter: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
 
-#[derive(Accounts)]
-pub struct VoteOnComment<'info> {
+    #[account(seeds = [b"program_state"], bump)]
+    pub program_state: Account<'info, ProgramState>,
+
     #[account(mut)]
-    pub comment: Account<'info, Comment>,
+    pub rewards_treasury: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub voter_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub listing_creator_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub treasury: Account<'info, RewardsTreasury>,
 
     #[account(
-        init_if_needed,
-        seeds = [b"comment_vote", comment.key().as_ref(), voter.key().as_ref()],
-        space = 8 + 32 + 32 + 1 + 1,
-        bump,
-        payer = voter
+        mut,
+        seeds = [b"user", voter.key().as_ref()],
+        bump
     )]
-    pub vote: Account<'info, Vote>,
+    pub voter_user: Account<'info, User>,
 
-    #[account(mut)]
-    pub voter: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [b"user", listing.creator.key().as_ref()],
+        bump
+    )]
+    pub listing_creator_user: Account<'info, User>,
+
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -52,26 +69,24 @@ pub fn up_vote_listing(ctx: Context<VoteOnListing>) -> Result<()> {
     let listing = &mut ctx.accounts.listing;
     let vote = &mut ctx.accounts.vote;
 
-    // If vote already exists, check if we need to change it
+    // Check for vote overflow
+    require!(listing.vote_count < i16::MAX, OpenHouseError::VoteOverflow);
+
+    // Validate existing vote
     if vote.owner == ctx.accounts.voter.key() {
-        if vote.is_upvote {
-            return Ok(());
-        } else {
-            // Change downvote to upvote
-            // Remove downvote and add upvote
-            listing.vote_count += 2;
-            vote.is_upvote = true;
-            return Ok(());
-        }
+        require!(!vote.is_upvote, OpenHouseError::DuplicateVote);
+        listing.vote_count = listing.vote_count.checked_add(2).ok_or(OpenHouseError::VoteOverflow)?;
+        vote.is_upvote = true;
+        return Ok(());
     }
 
-    // New vote
+    // Process new vote
     vote.owner = ctx.accounts.voter.key();
     vote.target = listing.key();
     vote.is_upvote = true;
     vote.bump = ctx.bumps.vote;
 
-    listing.vote_count += 1;
+    listing.vote_count = listing.vote_count.checked_add(1).ok_or(OpenHouseError::VoteOverflow)?;
 
     Ok(())
 }
@@ -101,55 +116,6 @@ pub fn down_vote_listing(ctx: Context<VoteOnListing>) -> Result<()> {
     vote.bump = ctx.bumps.vote;
 
     listing.vote_count -= 1;
-
-    Ok(())
-}
-
-// Similar implementation for comment voting
-pub fn up_vote_comment(ctx: Context<VoteOnComment>) -> Result<()> {
-    let comment = &mut ctx.accounts.comment;
-    let vote = &mut ctx.accounts.vote;
-
-    if vote.owner == ctx.accounts.voter.key() {
-        if vote.is_upvote {
-            return Ok(());
-        } else {
-            comment.vote_count += 2;
-            vote.is_upvote = true;
-            return Ok(());
-        }
-    }
-
-    vote.owner = ctx.accounts.voter.key();
-    vote.target = comment.key();
-    vote.is_upvote = true;
-    vote.bump = ctx.bumps.vote;
-
-    comment.vote_count += 1;
-
-    Ok(())
-}
-
-pub fn down_vote_comment(ctx: Context<VoteOnComment>) -> Result<()> {
-    let comment = &mut ctx.accounts.comment;
-    let vote = &mut ctx.accounts.vote;
-
-    if vote.owner == ctx.accounts.voter.key() {
-        if !vote.is_upvote {
-            return Ok(());
-        } else {
-            comment.vote_count -= 2;
-            vote.is_upvote = false;
-            return Ok(());
-        }
-    }
-
-    vote.owner = ctx.accounts.voter.key();
-    vote.target = comment.key();
-    vote.is_upvote = false;
-    vote.bump = ctx.bumps.vote;
-
-    comment.vote_count -= 1;
 
     Ok(())
 }

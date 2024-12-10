@@ -1,5 +1,11 @@
 use anchor_lang::prelude::*;
 use crate::state::listing::*;
+use anchor_spl::token::{ self, Token, TokenAccount };
+use crate::errors::OpenHouseError;
+use crate::constants::MAX_REVIEW_CONTENT_LENGTH;
+use crate::state::program_state::ProgramState;
+use crate::state::reward::RewardsTreasury;
+use crate::state::user::User;
 
 #[derive(Accounts)]
 #[instruction(content: String)]
@@ -13,24 +19,44 @@ pub struct CreateComment<'info> {
     #[account(
         init,
         payer = owner,
-        space = 8 + // discriminator
-        32 + // owner pubkey
-        32 + // listing pubkey
-        4 +
-        content.len() + // string (4 bytes for length prefix + content)
-        8 + // vote_count (i64)
-        1, // bump
+        space = Comment::LEN + content.len(),
         seeds = [b"comment", listing.key().as_ref(), owner.key().as_ref()],
         bump
     )]
     pub comment: Account<'info, Comment>,
 
+    #[account(seeds = [b"program_state"], bump)]
+    pub program_state: Account<'info, ProgramState>,
+
+    #[account(mut)]
+    pub rewards_treasury: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub user_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub treasury: Account<'info, RewardsTreasury>,
+
+    #[account(
+        mut,
+        seeds = [b"user", owner.key().as_ref()],
+        bump
+    )]
+    pub user: Account<'info, User>,
+
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn create_comment(ctx: Context<CreateComment>, content: String) -> Result<()> {
-    let comment = &mut ctx.accounts.comment;
+    require!(!content.is_empty(), OpenHouseError::EmptyComment);
+    require!(content.len() <= MAX_REVIEW_CONTENT_LENGTH, OpenHouseError::CommentTooLong);
+    require!(
+        ctx.accounts.listing.status == ListingStatus::Active,
+        OpenHouseError::ListingNotActive
+    );
 
+    let comment = &mut ctx.accounts.comment;
     comment.owner = ctx.accounts.owner.key();
     comment.listing = ctx.accounts.listing.key();
     comment.content = content;

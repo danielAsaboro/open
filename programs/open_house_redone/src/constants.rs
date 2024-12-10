@@ -14,3 +14,10 @@ pub const MAX_REVIEW_CONTENT_LENGTH: usize = 200;
 
 // location reveal fee
 pub const LOCATION_REVEAL_FEE: u64 = 10000;
+
+// constants/rewards.rs
+pub const VOTE_REWARD: u64 = 1; // Reward for casting a vote
+pub const VOTE_RECEIVED_REWARD: u64 = 2; // Reward for receiving a vote
+pub const COMMENT_REWARD: u64 = 5; // Reward for making a comment
+pub const LISTING_REWARD: u64 = 10; // Reward for creating a listing
+pub const DAILY_PARTICIPATION_REWARD: u64 = 20; // Daily reward for active users

@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::state::listing::{ Listing, ListingStatus, Location };
+use crate::{errors::OpenHouseError, state::listing::{ Listing, ListingStatus, Location }};
 
 #[derive(Accounts)]
 pub struct UpdateListing<'info> {
@@ -33,6 +33,13 @@ pub fn update_listing(
     }
 
     if let Some(status) = new_status {
+        match (listing.status, status) {
+            (ListingStatus::Active, ListingStatus::Sold) => (),
+            (ListingStatus::Active, ListingStatus::Deleted) => (),
+            (_, _) => {
+                return Err(OpenHouseError::InvalidListingStatusTransition.into());
+            }
+        }
         listing.status = status;
     }
 
